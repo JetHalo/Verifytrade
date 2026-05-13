@@ -1,0 +1,46 @@
+# Example Prover.toml — fill in real values and rename to Prover.toml to run.
+#
+# All amounts use the offset encoding: stored_value = real_USDT_value × 1e8 + 1e18
+#
+# Example: a winning proof showing a user made +1500 USDT in the window 1717200000000..1717804800000
+
+# === Private inputs ===
+
+# 100 slots, only first `valid_count` are real, rest are zero-padded.
+# Each value is encoded: real_pnl_x1e8 + 1e18
+# Example: +1500 USDT → 1500 * 1e8 + 1e18 = 1000000150000000000
+trades_pnl_encoded = [
+    "1000000050000000000",  # trade 0: +500 USDT
+    "1000000100000000000",  # trade 1: +1000 USDT
+    # ... rest is padding (PNL_OFFSET = 1e18, decodes to 0)
+    "1000000000000000000", "1000000000000000000", "1000000000000000000",
+    # ... (for brevity, fill the rest with 1e18 in real Prover.toml)
+]
+
+# Millisecond timestamps. Only the first `valid_count` matter.
+trades_time = [
+    "1717250000000",  # trade 0 timestamp
+    "1717350000000",  # trade 1 timestamp
+    "0", "0", "0",
+    # ... rest is 0
+]
+
+valid_count = "2"
+binance_uid = "12345"
+
+# === Public inputs ===
+
+# Threshold: +500 USDT minimum profit to qualify
+threshold_encoded = "1000000050000000000"
+
+# Time window: 2024-06-01 to 2024-06-07 (in milliseconds)
+period_start = "1717200000000"
+period_end   = "1717804800000"
+
+# User's wallet address (as Field — left-padded address)
+user_wallet = "0xABCDEF1234567890ABCDEF1234567890ABCDEF12"
+
+# uid_binding_hash and disclosed_commitment must be precomputed by the Prover CLI
+# using the same Poseidon hash function. Placeholder values shown here.
+uid_binding_hash     = "0x0000000000000000000000000000000000000000000000000000000000000000"
+disclosed_commitment = "0x0000000000000000000000000000000000000000000000000000000000000000"

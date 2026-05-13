@@ -1,0 +1,7 @@
+[package]
+name = "verifytrade_circuit"
+type = "bin"
+authors = ["VerifyTrade"]
+compiler_version = ">=0.34.0"
+
+[dependencies]

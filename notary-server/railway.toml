@@ -1,0 +1,17 @@
+# Railway configuration for VerifyTrade Notary Server
+#
+# Reference: https://docs.railway.app/reference/config-as-code
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "./Dockerfile"
+
+[deploy]
+startCommand = "/usr/local/bin/notary-server --config-file /app/config/config.yaml"
+healthcheckPath = "/info"
+healthcheckTimeout = 30
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+
+# Single replica is fine for workshop (one user per notary).
+numReplicas = 1
