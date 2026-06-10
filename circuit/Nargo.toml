@@ -2,6 +2,6 @@
 name = "verifytrade_circuit"
 type = "bin"
 authors = ["VerifyTrade"]
-compiler_version = ">=0.34.0"
 
 [dependencies]
+poseidon = { tag = "v0.2.6", git = "https://github.com/noir-lang/poseidon" }

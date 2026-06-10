@@ -1,7 +1,59 @@
+# ===== OS / Editor =====
 .DS_Store
 .idea/
 .vscode/
 *.swp
 *.swo
+Thumbs.db
+
+# ===== Environment / Secrets · NEVER COMMIT =====
 .env
 .env.local
+.env.*.local
+.env.production
+.env.development
+
+# ===== AI / Prompt / Dev Notes (defensive) =====
+# These often contain personal context, debug breadcrumbs, half-finished
+# prompts, or path/IP/cookie traces you don't want public. Keep them local.
+.claude/
+.cursor/
+.cursorrules
+.aider*
+.specstory/
+.windsurf*
+CLAUDE.md
+AGENTS.md
+progress.md
+feature_list.json
+PROMPT.md
+PROMPTS.md
+prompts/
+.agent/
+NOTES.md
+TODO.md
+SCRATCH.md
+
+# ===== Session / Cookie Captures (defensive) =====
+cookies.txt
+cookies.json
+*.cookies.json
+session.json
+auth.json
+har/
+*.har
+
+# ===== Build artifacts at root =====
+*.log
+*.pid
+*.seed
+*.pid.lock
+
+# ===== Local data / runtime state at root =====
+# (sub-projects have their own ignores for node_modules, .next, etc.)
+data/local/
+tmp/
+.tmp/
+
+# ===== Internal dev docs (keep local, not for public repo) =====
+docs/

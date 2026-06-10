@@ -1,70 +1,85 @@
 // VerifyTrade - Noir circuit (UltraHonk backend)
 //
-// Asserts that a user's Binance Futures trading PnL during a given time window
-// exceeds a threshold, and binds the assertion to a TLSNotary commitment so
-// the trade data is provably authentic.
+// Demo-mode circuit: the user discloses three aggregates of their Binance
+// Futures trading during a fixed time window -- trade count, total notional
+// volume, and realized PnL -- and the circuit proves all three are correctly
+// computed from a real TLSNotary-attested API response.
+//
+// Compared to the earlier threshold-gated version, this build:
+//   - drops the "PnL > threshold" gate (the demo wants any number on the board)
+//   - exposes `claimed_pnl`, `claimed_trade_count`, `claimed_volume` as public
+//     inputs that the circuit pins down to the data inside the TLSNotary
+//     commitment, so the user can't lie about any of the three.
 //
 // === Field encoding ===
 //
-// realizedPnl from Binance is a decimal USDT value (e.g. "12.345"). It can be
-// negative (losses). To work in a ZK circuit we encode as:
-//   encoded_pnl = pnl_in_USDT_times_1e8 + PNL_OFFSET
-// where PNL_OFFSET is large enough to keep encoded values non-negative.
-// All field-level arithmetic is then on unsigned Fields, with comparison/sum
-// adjusted accordingly.
+//   encoded_pnl = pnl_in_USDT_times_1e8 + PNL_OFFSET   (signed -> unsigned field)
+//   volume      = quote_qty_in_USDT_times_1e8          (always >= 0, no offset)
+//   trade_count = scalar count                          (always >= 0)
 
 global MAX_TRADES: u32 = 100;
-global PNL_OFFSET: Field = 1000000000000000000; // 1e18 - comfortably greater than any plausible single-trade loss
+global PNL_OFFSET: Field = 1000000000000000000; // 1e18
 
 fn main(
     // ============ Private inputs (from TLSNotary selective disclosure) ============
     // Each slot is offset-encoded: stored = real_pnl_x1e8 + PNL_OFFSET
     trades_pnl_encoded: [Field; 100],
     trades_time:        [Field; 100],
+    // Per-trade notional volume = quoteQty_in_USDT_x1e8, always non-negative
+    trades_volume:      [Field; 100],
     // Number of valid trades (rest of array is zero-padded). 0 < valid_count <= 100.
     valid_count: Field,
     // Binance UID hashed externally for privacy
     binance_uid: Field,
 
-    // ============ Public inputs (from on-chain Round configuration) ============
-    threshold_encoded:     pub Field, // real_threshold_x1e8 + PNL_OFFSET
+    // ============ Public inputs ============
+    // From on-chain Round configuration
     period_start:          pub Field,
     period_end:            pub Field,
     user_wallet:           pub Field,
     uid_binding_hash:      pub Field,
     disclosed_commitment:  pub Field,
+
+    // User-claimed aggregates -- circuit pins these to the data inside the commitment
+    claimed_pnl_encoded:   pub Field,
+    claimed_trade_count:   pub Field,
+    claimed_volume:        pub Field,
 ) {
-    // ---------- 1. Window-filtered PnL sum ----------
+    // ---------- 1. Window-filtered aggregates ----------
     //
     // For each trade slot i in [0, MAX_TRADES):
     //   if i < valid_count AND trades_time[i] in [period_start, period_end]:
-    //     contribution = trades_pnl_encoded[i] - PNL_OFFSET
+    //     contribution_pnl    = trades_pnl_encoded[i] - PNL_OFFSET
+    //     contribution_count  = 1
+    //     contribution_volume = trades_volume[i]
     //   else:
-    //     contribution = 0
-    //
-    // total_real_pnl = sum of contributions
+    //     all three contributions are 0
 
-    let mut total_real_pnl: Field = 0;
+    let mut total_real_pnl:   Field = 0;
+    let mut count_in_window:  Field = 0;
+    let mut volume_in_window: Field = 0;
 
     for i in 0..MAX_TRADES {
-        let idx_in_range = (i as Field).lt(valid_count);
+        let idx_in_range  = (i as Field).lt(valid_count);
         let time_ge_start = !trades_time[i].lt(period_start);
         let time_le_end   = !period_end.lt(trades_time[i]);
         let in_window     = idx_in_range & time_ge_start & time_le_end;
 
-        // Decode and conditionally add
         let real_pnl_at_i = trades_pnl_encoded[i] - PNL_OFFSET;
-        let contribution  = if in_window { real_pnl_at_i } else { 0 };
-        total_real_pnl = total_real_pnl + contribution;
+
+        total_real_pnl   = total_real_pnl   + if in_window { real_pnl_at_i      } else { 0 };
+        count_in_window  = count_in_window  + if in_window { 1                  } else { 0 };
+        volume_in_window = volume_in_window + if in_window { trades_volume[i]   } else { 0 };
     }
 
-    // ---------- 2. Assert: total PnL > threshold ----------
-    let real_threshold = threshold_encoded - PNL_OFFSET;
-    // total_real_pnl > real_threshold  iff  real_threshold.lt(total_real_pnl)
-    assert(real_threshold.lt(total_real_pnl));
+    // ---------- 2. Pin user-claimed aggregates to circuit-computed totals ----------
+    let claimed_real_pnl = claimed_pnl_encoded - PNL_OFFSET;
+    assert(claimed_real_pnl       == total_real_pnl);
+    assert(claimed_trade_count    == count_in_window);
+    assert(claimed_volume         == volume_in_window);
 
     // ---------- 3. Bind Binance UID to user wallet ----------
-    let computed_uid_binding = std::hash::poseidon::bn254::hash_2(
+    let computed_uid_binding = poseidon::poseidon::bn254::hash_2(
         [binance_uid, user_wallet]
     );
     assert(computed_uid_binding == uid_binding_hash);
@@ -73,6 +88,7 @@ fn main(
     let computed_commitment = compute_trades_commitment(
         trades_pnl_encoded,
         trades_time,
+        trades_volume,
         valid_count,
         binance_uid,
     );
@@ -81,15 +97,21 @@ fn main(
 
 // Hash all trade data into a single Field, in a way reproducible by the Prover CLI.
 // Order and inputs MUST match the Rust-side computation byte-for-byte.
+//
+// Per-slot folding uses an intermediate hash_2(pnl_encoded[i], time[i]) so the
+// 4-tuple (acc, pnl_encoded[i], time[i], volume[i]) only needs hash_2 + hash_3
+// primitives (no hash_4 in std::hash::poseidon::bn254).
 fn compute_trades_commitment(
     pnl_encoded: [Field; 100],
-    time: [Field; 100],
+    time:        [Field; 100],
+    volume:      [Field; 100],
     valid_count: Field,
-    uid: Field,
+    uid:         Field,
 ) -> Field {
-    let mut acc: Field = std::hash::poseidon::bn254::hash_2([uid, valid_count]);
+    let mut acc: Field = poseidon::poseidon::bn254::hash_2([uid, valid_count]);
     for i in 0..MAX_TRADES {
-        acc = std::hash::poseidon::bn254::hash_3([acc, pnl_encoded[i], time[i]]);
+        let pnl_time = poseidon::poseidon::bn254::hash_2([pnl_encoded[i], time[i]]);
+        acc = poseidon::poseidon::bn254::hash_3([acc, pnl_time, volume[i]]);
     }
     acc
 }
@@ -97,62 +119,90 @@ fn compute_trades_commitment(
 // ---------- Tests ----------
 //
 // Run with: `nargo test`
-//
-// These exercise basic correctness; the real proof generation is driven by Prover.toml.
 
 #[test]
-fn test_simple_winning_proof() {
-    // Single trade with +1000 USDT PnL, well above 500 USDT threshold
-    let mut pnl  = [PNL_OFFSET; 100];
-    let mut time = [0; 100];
+fn test_three_metrics_pinning() {
+    // Two trades inside window, one outside.
+    // Inside-window aggregates: count = 2, volume = 30000_00000000, pnl = +800 USDT
+    let mut pnl    = [PNL_OFFSET; 100];
+    let mut time   = [0; 100];
+    let mut volume = [0; 100];
 
-    // Encode +1000 USDT (x1e8 = 1e11) on top of offset
-    pnl[0]  = PNL_OFFSET + 100000000000;
-    time[0] = 1717200001000;
+    // Trade 0: in window, +500 USDT, $10000 notional
+    pnl[0]    = PNL_OFFSET + 50000000000;        // +500 USDT x 1e8
+    time[0]   = 1717200001000;
+    volume[0] = 1000000000000;                    // 10000 USDT x 1e8
 
-    let uid = 12345;
-    let wallet = 0xABCDEF;
+    // Trade 1: in window, +300 USDT, $20000 notional
+    pnl[1]    = PNL_OFFSET + 30000000000;
+    time[1]   = 1717400000000;
+    volume[1] = 2000000000000;
 
-    let uid_binding = std::hash::poseidon::bn254::hash_2([uid, wallet]);
-    let commitment = compute_trades_commitment(pnl, time, 1, uid);
+    // Trade 2: BEFORE window -- must be excluded
+    pnl[2]    = PNL_OFFSET + 99999999999;
+    time[2]   = 1717100000000;                    // < period_start
+    volume[2] = 9999999999999;
+
+    let valid_count = 3;
+    let uid: Field    = 12345;
+    let wallet: Field = 0xABCDEF;
+
+    let uid_binding = poseidon::poseidon::bn254::hash_2([uid, wallet]);
+    let commitment  = compute_trades_commitment(pnl, time, volume, valid_count, uid);
 
     main(
         pnl,
         time,
-        1,
+        volume,
+        valid_count,
         uid,
-        PNL_OFFSET + 50000000000, // threshold = +500 USDT
-        1717200000000,
-        1717804800000,
+        1717200000000,                              // period_start
+        1717804800000,                              // period_end
         wallet,
         uid_binding,
         commitment,
+        PNL_OFFSET + 80000000000,                   // claimed_pnl_encoded = +800 USDT
+        2,                                           // claimed_trade_count
+        3000000000000,                              // claimed_volume = 30000 USDT x 1e8
+    );
+}
+
+#[test]
+fn test_negative_pnl_still_works() {
+    // Single losing trade -- claimed PnL is negative, circuit still binds it.
+    let mut pnl    = [PNL_OFFSET; 100];
+    let mut time   = [0; 100];
+    let mut volume = [0; 100];
+
+    pnl[0]    = PNL_OFFSET - 25000000000;        // -250 USDT
+    time[0]   = 1717200001000;
+    volume[0] = 500000000000;                     // 5000 USDT notional
+
+    let valid_count = 1;
+    let uid: Field    = 67890;
+    let wallet: Field = 0xFEEDBEEF;
+
+    let uid_binding = poseidon::poseidon::bn254::hash_2([uid, wallet]);
+    let commitment  = compute_trades_commitment(pnl, time, volume, valid_count, uid);
+
+    main(
+        pnl, time, volume, valid_count, uid,
+        1717200000000, 1717804800000,
+        wallet, uid_binding, commitment,
+        PNL_OFFSET - 25000000000,                   // claimed_pnl_encoded = -250 USDT
+        1,
+        500000000000,
     );
 }
 
 /// Cross-consistency anchor with the Rust prover side.
-///
-/// Run on the Rust side:
-///   cd ../prover && cargo test cross_consistency_test -- --nocapture
-///
-/// Run on this side:
-///   nargo test --print test_poseidon_canonical
-///
-/// Both sides must produce identical hex values. If they don't, the
-/// Poseidon implementations are using different parameters and the
-/// trust closure is broken. Switch crates and retest.
+/// Both sides must produce identical hex values. Don't move these without
+/// regenerating the matching Rust constants in `prover/src/commitment.rs`.
 #[test]
 fn test_poseidon_canonical() {
-    let h2 = std::hash::poseidon::bn254::hash_2([1, 2]);
-    let h3 = std::hash::poseidon::bn254::hash_3([1, 2, 3]);
-    // We can't print from a noir test cleanly, so we encode expected
-    // results as assertions instead. Update these after running the
-    // first round of cross-verification.
-    //
-    // PLACEHOLDER: replace with the actual hex once you've cross-checked.
-    // For example:
-    //   assert(h2 == 0x115cc0f5e7d690413df64c6b9662e9cf2a3617f2743245519e19607a4417189a);
-    //   assert(h3 == 0x...);
-    let _ = (h2, h3);
-}
+    let h2 = poseidon::poseidon::bn254::hash_2([1, 2]);
+    assert(h2 == 0x115cc0f5e7d690413df64c6b9662e9cf2a3617f2743245519e19607a4417189a);
 
+    let h3 = poseidon::poseidon::bn254::hash_3([1, 2, 3]);
+    assert(h3 == 0x0e7732d89e6939c0ff03d5e58dab6302f3230e269dc5b968f725df34ab36d732);
+}
