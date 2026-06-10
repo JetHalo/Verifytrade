@@ -1,19 +1,13 @@
 "use client";
 
-import { RainbowKitProvider } from "@rainbow-me/rainbowkit";
-import "@rainbow-me/rainbowkit/styles.css";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { WagmiProvider } from "wagmi";
-import { wagmiConfig } from "@/lib/wagmi";
-
-const queryClient = new QueryClient();
-
+/**
+ * Providers — formerly wrapped wagmi + RainbowKit + react-query, now a no-op
+ * passthrough. Wallet connection was removed when the contract was retired in
+ * favor of the Next.js API + zkVerify backend.
+ *
+ * If you ever want wallets back, restore the WagmiProvider/RainbowKitProvider
+ * here and add ConnectButton to components/Header.tsx.
+ */
 export function Providers({ children }: { children: React.ReactNode }) {
-  return (
-    <WagmiProvider config={wagmiConfig}>
-      <QueryClientProvider client={queryClient}>
-        <RainbowKitProvider>{children}</RainbowKitProvider>
-      </QueryClientProvider>
-    </WagmiProvider>
-  );
+  return <>{children}</>;
 }

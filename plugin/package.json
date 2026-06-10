@@ -1,0 +1,17 @@
+{
+  "name": "veirfytrade-plugin",
+  "version": "0.1.0",
+  "description": "TLSNotary plugin: notarize Binance Futures realized PnL for VerifyTrade",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "build": "node esbuild.js"
+  },
+  "keywords": ["tlsnotary", "zkverify", "binance", "zk-tls"],
+  "author": "VerifyTrade",
+  "license": "MIT",
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "typescript": "^5.6.0"
+  }
+}

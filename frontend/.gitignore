@@ -6,3 +6,7 @@ build/
 .env
 *.log
 .DS_Store
+
+# Runtime state — the JSON "database" replacing the on-chain contract
+data/state.json
+data/vk

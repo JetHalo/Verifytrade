@@ -2,3 +2,8 @@ target/
 proofs/
 Prover.toml
 Verifier.toml
+
+# 例外：保留这两个产物，让听众不用装 Noir/bb 就能跑
+!target/verifytrade_circuit.json
+!target/proof_out/
+!target/proof_out/vk

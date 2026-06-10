@@ -1,163 +1,136 @@
 "use client";
 
 import { useState } from "react";
-import { useAccount, useReadContract, useWriteContract } from "wagmi";
-import { parseEther } from "viem";
-import { COMPETITION_ADDRESS, competitionAbi } from "@/lib/contracts";
-import { AlertCircle, ShieldAlert, CheckCircle2 } from "lucide-react";
+import { createRound } from "@/lib/api-client";
+import { AlertCircle, CheckCircle2, Sparkles, Calendar } from "lucide-react";
 
 /**
- * Admin page for the round operator. Only visible / actionable to the owner
- * of the Competition contract.
+ * "Open a Round" — anyone can call. No wallet required.
+ * Creator is just a free-form alias; only that same alias may later finalize it.
  */
-export default function AdminPage() {
-  const { address, isConnected } = useAccount();
-  const { writeContract, isPending, data: txHash, error } = useWriteContract();
-
-  const { data: ownerAddress } = useReadContract({
-    address: COMPETITION_ADDRESS,
-    abi: competitionAbi,
-    functionName: "owner",
-  });
-
-  const { data: nextRoundId } = useReadContract({
-    address: COMPETITION_ADDRESS,
-    abi: competitionAbi,
-    functionName: "nextRoundId",
-  });
-
+export default function OpenRoundPage() {
+  const [creator,     setCreator]     = useState("");
   const [periodStart, setPeriodStart] = useState("");
-  const [periodEnd, setPeriodEnd] = useState("");
-  const [thresholdUsdt, setThresholdUsdt] = useState("");
-  const [rewardEth, setRewardEth] = useState("");
-  const [finalizeRoundId, setFinalizeRoundId] = useState("");
+  const [periodEnd,   setPeriodEnd]   = useState("");
+  const [submitting, setSubmitting]   = useState(false);
+  const [created, setCreated] = useState<{ id: number } | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const isOwner =
-    isConnected &&
-    address &&
-    ownerAddress &&
-    (address as string).toLowerCase() === (ownerAddress as string).toLowerCase();
-
-  const handleCreateRound = () => {
-    if (!periodStart || !periodEnd || !thresholdUsdt || !rewardEth) return;
-    const start = BigInt(periodStart);
-    const end = BigInt(periodEnd);
-    const thresholdX1e8 = BigInt(thresholdUsdt) * 10n ** 8n;
-    const reward = parseEther(rewardEth);
-
-    writeContract({
-      address: COMPETITION_ADDRESS,
-      abi: competitionAbi,
-      functionName: "createRound",
-      args: [start, end, thresholdX1e8, reward],
-      value: reward,
-    });
-  };
-
-  const handleFinalize = () => {
-    if (!finalizeRoundId) return;
-    writeContract({
-      address: COMPETITION_ADDRESS,
-      abi: competitionAbi,
-      functionName: "finalizeRound",
-      args: [BigInt(finalizeRoundId)],
-    });
-  };
-
-  // Helper buttons to set period from human input
-  const setPeriodFromDates = () => {
+  const setPeriodOneHour = () => {
     const now = Date.now();
-    setPeriodStart(now.toString());
-    setPeriodEnd((now + 7 * 24 * 60 * 60 * 1000).toString());
+    setPeriodStart(String(now));
+    setPeriodEnd(String(now + 60 * 60 * 1000));
   };
 
-  if (!isConnected) {
-    return (
-      <div className="card text-center">
-        <AlertCircle className="w-10 h-10 text-amber-500 mx-auto mb-3" />
-        <h2 className="font-bold text-lg mb-2">Connect Wallet</h2>
-        <p className="text-slate-600 text-sm">Use the Connect button to access admin.</p>
-      </div>
-    );
-  }
+  const setPeriodSevenDays = () => {
+    const now = Date.now();
+    setPeriodStart(String(now));
+    setPeriodEnd(String(now + 7 * 24 * 60 * 60 * 1000));
+  };
 
-  if (!isOwner) {
-    return (
-      <div className="card text-center">
-        <ShieldAlert className="w-10 h-10 text-red-500 mx-auto mb-3" />
-        <h2 className="font-bold text-lg mb-2">Not Authorized</h2>
-        <p className="text-slate-600 text-sm">
-          Only the contract owner ({ownerAddress ? (ownerAddress as string).slice(0, 10) + "…" : "?"}) can access admin.
-        </p>
-      </div>
-    );
-  }
+  // Backward-looking windows -- handy for proving trades you've already made.
+  const setPeriodPastHour = () => {
+    const now = Date.now();
+    setPeriodStart(String(now - 60 * 60 * 1000));
+    setPeriodEnd(String(now));
+  };
+
+  const setPeriodPastDay = () => {
+    const now = Date.now();
+    setPeriodStart(String(now - 24 * 60 * 60 * 1000));
+    setPeriodEnd(String(now));
+  };
+
+  const setPeriodPastWeek = () => {
+    const now = Date.now();
+    setPeriodStart(String(now - 7 * 24 * 60 * 60 * 1000));
+    setPeriodEnd(String(now));
+  };
+
+  const handleCreate = async () => {
+    setError(null);
+    setCreated(null);
+    if (!periodStart || !periodEnd || !creator) {
+      setError("creator name + both timestamps are required");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const row = await createRound({
+        creator: creator.trim(),
+        periodStart,
+        periodEnd,
+      });
+      setCreated({ id: row.id });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-slate-900">Admin Console</h1>
-        <p className="text-sm text-slate-500 mt-1">
-          Next roundId: <span className="font-mono">{nextRoundId?.toString() ?? "—"}</span>
+    <div className="max-w-2xl mx-auto space-y-8">
+      <header className="space-y-2">
+        <span className="pill-violet"><Sparkles className="w-3 h-3" />demo mode — anyone can open a round</span>
+        <h1 className="text-3xl font-bold text-white">Open a Round</h1>
+        <p className="text-sm text-slate-400">
+          No wallet needed. Pick a window and an identifier; the round shows up on the leaderboard immediately.
         </p>
-      </div>
+      </header>
 
       <section className="card space-y-4">
-        <h2 className="font-bold text-lg">Create New Round</h2>
+        <div className="flex items-center gap-2">
+          <Calendar className="w-4 h-4 text-violet-300" />
+          <h2 className="text-base font-semibold text-white">Create New Round</h2>
+        </div>
+
+        <Input label="Your Identity / Alias" value={creator} onChange={setCreator} placeholder="jet" />
+
         <div className="grid grid-cols-2 gap-3">
           <Input label="Period Start (Unix ms)" value={periodStart} onChange={setPeriodStart} placeholder="1717200000000" />
-          <Input label="Period End (Unix ms)" value={periodEnd} onChange={setPeriodEnd} placeholder="1717804800000" />
-          <Input label="Threshold (USDT)" value={thresholdUsdt} onChange={setThresholdUsdt} placeholder="500" />
-          <Input label="Reward Pool (ETH)" value={rewardEth} onChange={setRewardEth} placeholder="0.1" />
+          <Input label="Period End (Unix ms)"   value={periodEnd}   onChange={setPeriodEnd}   placeholder="1717804800000" />
         </div>
-        <button onClick={setPeriodFromDates} className="text-xs text-zkv-700 hover:underline">
-          ↳ Quick set: now → 7 days from now
-        </button>
+
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="stat-label w-12">past</span>
+            <button onClick={setPeriodPastHour} className="btn-ghost text-xs">↶ past 1 hour</button>
+            <button onClick={setPeriodPastDay}  className="btn-ghost text-xs">↶ past 1 day</button>
+            <button onClick={setPeriodPastWeek} className="btn-ghost text-xs">↶ past 1 week</button>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="stat-label w-12">future</span>
+            <button onClick={setPeriodOneHour}   className="btn-ghost text-xs">↳ next 1 hour</button>
+            <button onClick={setPeriodSevenDays} className="btn-ghost text-xs">↳ next 7 days</button>
+          </div>
+        </div>
+
         <button
-          onClick={handleCreateRound}
-          disabled={isPending || !periodStart || !periodEnd || !thresholdUsdt || !rewardEth}
+          onClick={handleCreate}
+          disabled={submitting || !periodStart || !periodEnd || !creator}
           className="btn-primary w-full"
         >
-          {isPending ? "Creating…" : "Create Round"}
+          {submitting ? "Creating…" : "Create Round"}
         </button>
       </section>
 
-      <section className="card space-y-4">
-        <h2 className="font-bold text-lg">Finalize Round</h2>
-        <p className="text-sm text-slate-600">
-          Finalizing closes submissions and lets top-10 participants claim rewards.
-        </p>
-        <Input label="Round ID" value={finalizeRoundId} onChange={setFinalizeRoundId} placeholder="0" />
-        <button
-          onClick={handleFinalize}
-          disabled={isPending || !finalizeRoundId}
-          className="btn-secondary w-full"
-        >
-          {isPending ? "Finalizing…" : "Finalize Round"}
-        </button>
-      </section>
-
-      {txHash && (
-        <div className="p-3 bg-green-50 rounded-lg flex items-start gap-2 text-sm">
-          <CheckCircle2 className="w-4 h-4 text-green-600 mt-0.5" />
+      {created && (
+        <div className="flex items-start gap-2 rounded-xl border border-emerald-400/20 bg-emerald-400/[0.06] p-3 text-sm">
+          <CheckCircle2 className="w-4 h-4 text-emerald-300 mt-0.5" />
           <div>
-            <div className="font-medium text-green-900">Transaction submitted</div>
-            <a
-              href={`https://sepolia.basescan.org/tx/${txHash}`}
-              target="_blank"
-              rel="noreferrer"
-              className="text-xs text-green-700 font-mono underline"
-            >
-              {txHash}
+            <div className="font-medium text-emerald-200">Round #{created.id} created</div>
+            <a href={`/leaderboard/${created.id}`} className="text-xs text-emerald-300 underline">
+              open its leaderboard →
             </a>
           </div>
         </div>
       )}
 
       {error && (
-        <div className="p-3 bg-red-50 rounded-lg flex items-start gap-2 text-sm">
-          <AlertCircle className="w-4 h-4 text-red-600 mt-0.5" />
-          <span className="text-red-700">{error.message}</span>
+        <div className="flex items-start gap-2 rounded-xl border border-rose-400/20 bg-rose-400/[0.06] p-3 text-sm">
+          <AlertCircle className="w-4 h-4 text-rose-300 mt-0.5" />
+          <span className="text-rose-200">{error}</span>
         </div>
       )}
     </div>
@@ -165,26 +138,19 @@ export default function AdminPage() {
 }
 
 function Input({
-  label,
-  value,
-  onChange,
-  placeholder,
+  label, value, onChange, placeholder,
 }: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  placeholder: string;
+  label: string; value: string; onChange: (v: string) => void; placeholder: string;
 }) {
   return (
     <label className="block">
-      <span className="text-xs font-medium text-slate-600 uppercase tracking-wider">{label}</span>
+      <span className="stat-label">{label}</span>
       <input
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono
-                   focus:outline-none focus:ring-2 focus:ring-zkv-500"
+        className="input"
       />
     </label>
   );

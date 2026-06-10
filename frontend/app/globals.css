@@ -2,24 +2,112 @@
 @tailwind components;
 @tailwind utilities;
 
+/* =========================
+   Crypto dark base
+   ========================= */
 @layer base {
+  html {
+    color-scheme: dark;
+  }
   body {
-    @apply bg-slate-50 text-slate-900 antialiased;
+    @apply bg-[#0a0a0f] text-slate-200 antialiased;
+    background-image:
+      radial-gradient(60% 60% at 50% 0%, rgba(139, 92, 246, 0.18) 0%, rgba(34, 211, 238, 0.08) 35%, rgba(0,0,0,0) 70%),
+      linear-gradient(to right, rgba(148,163,184,0.05) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(148,163,184,0.05) 1px, transparent 1px);
+    background-size: auto, 40px 40px, 40px 40px;
+    background-attachment: fixed;
+  }
+
+  ::selection {
+    background: rgba(139, 92, 246, 0.35);
+    color: #fafafa;
   }
 }
 
+/* =========================
+   Component classes
+   ========================= */
 @layer components {
+  /* Glass panel — used for cards, sections, modal-like things. */
   .card {
-    @apply bg-white rounded-xl shadow-sm border border-slate-200 p-6;
+    @apply relative rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-md
+           p-6 shadow-[0_8px_40px_-20px_rgba(139,92,246,0.35)];
   }
+  .card-hover {
+    @apply transition duration-200 hover:border-violet-400/40 hover:shadow-[0_8px_40px_-12px_rgba(139,92,246,0.45)];
+  }
+
+  /* Primary button — violet→cyan gradient with subtle glow */
   .btn-primary {
-    @apply inline-flex items-center justify-center px-4 py-2 rounded-lg
-           bg-zkv-700 text-white font-medium hover:bg-zkv-800 transition
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl
+           bg-gradient-to-r from-violet-600 to-cyan-500 text-white font-semibold
+           shadow-[0_4px_28px_-6px_rgba(139,92,246,0.55)]
+           transition hover:from-violet-500 hover:to-cyan-400
            disabled:opacity-50 disabled:cursor-not-allowed;
   }
+
+  /* Secondary button — outlined dark */
   .btn-secondary {
-    @apply inline-flex items-center justify-center px-4 py-2 rounded-lg
-           bg-white border border-slate-300 text-slate-700 font-medium
-           hover:bg-slate-50 transition;
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl
+           border border-white/15 bg-white/[0.03] text-slate-200 font-medium
+           transition hover:border-violet-400/40 hover:bg-white/[0.06];
   }
+
+  /* Ghost button */
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg
+           text-slate-300 hover:text-white hover:bg-white/[0.06] transition;
+  }
+
+  /* Pill badge */
+  .pill {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium tracking-wide;
+  }
+  .pill-violet { @apply pill bg-violet-500/15 text-violet-300 ring-1 ring-violet-400/25; }
+  .pill-cyan   { @apply pill bg-cyan-500/15   text-cyan-300   ring-1 ring-cyan-400/25;   }
+  .pill-green  { @apply pill bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-400/25; }
+  .pill-rose   { @apply pill bg-rose-500/15   text-rose-300   ring-1 ring-rose-400/25;   }
+  .pill-amber  { @apply pill bg-amber-500/15  text-amber-300  ring-1 ring-amber-400/25;  }
+
+  /* Stat tile */
+  .stat-tile {
+    @apply relative rounded-xl border border-white/10 bg-white/[0.02] p-4;
+  }
+  .stat-label {
+    @apply text-[10px] uppercase tracking-[0.18em] font-medium text-slate-500;
+  }
+  .stat-value {
+    @apply mt-1 text-2xl font-bold text-white tracking-tight;
+  }
+
+  /* Input */
+  .input {
+    @apply mt-1 w-full px-3 py-2.5 rounded-xl border border-white/10 bg-black/30
+           text-sm font-mono text-slate-100 placeholder:text-slate-600
+           focus:outline-none focus:ring-2 focus:ring-violet-400/40 focus:border-violet-400/40;
+  }
+
+  /* Gradient text */
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-violet-300 via-fuchsia-300 to-cyan-300;
+  }
+
+  /* Section divider */
+  .hairline {
+    @apply h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent;
+  }
+}
+
+/* =========================
+   Utility one-offs
+   ========================= */
+@layer utilities {
+  .ring-glow-violet { box-shadow: 0 0 0 1px rgba(139,92,246,0.40), 0 16px 60px -10px rgba(139,92,246,0.45); }
+  .ring-glow-cyan   { box-shadow: 0 0 0 1px rgba(34,211,238,0.40),  0 16px 60px -10px rgba(34,211,238,0.45);  }
+}
+
+/* RainbowKit connect button — soften its default radius for our theme */
+[data-rk] button {
+  border-radius: 0.75rem !important;
 }

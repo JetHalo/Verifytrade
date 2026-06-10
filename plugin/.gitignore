@@ -1,0 +1,5 @@
+node_modules/
+*.log
+
+# 例外：保留 dist/，让 frontend 不用 build plugin 就能跑
+demo/*.wasm

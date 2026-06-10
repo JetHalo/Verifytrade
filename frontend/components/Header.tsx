@@ -1,24 +1,41 @@
 "use client";
 
 import Link from "next/link";
-import { ConnectButton } from "@rainbow-me/rainbowkit";
 
 export function Header() {
   return (
-    <header className="border-b border-slate-200 bg-white">
-      <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-zkv-500 to-zkv-800" />
-          <span className="font-bold text-lg text-slate-900">VerifyTrade</span>
-          <span className="text-xs text-slate-500 ml-2 font-mono">ZK-TLS × zkVerify</span>
+    <header className="sticky top-0 z-40 border-b border-white/5 bg-[#0a0a0f]/70 backdrop-blur-xl">
+      <div className="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between gap-6">
+        <Link href="/" className="flex items-center gap-3 group">
+          <div className="relative h-8 w-8 rounded-lg bg-gradient-to-br from-violet-500 via-fuchsia-500 to-cyan-400 shadow-glow">
+            <span className="absolute inset-0 rounded-lg ring-1 ring-white/20" />
+          </div>
+          <div className="leading-tight">
+            <div className="font-semibold text-white tracking-tight">VerifyTrade</div>
+            <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500 font-mono">
+              TLSNotary <span className="opacity-50">×</span> zkVerify
+            </div>
+          </div>
         </Link>
-        <nav className="flex items-center gap-6 text-sm">
-          <Link href="/" className="text-slate-700 hover:text-zkv-700">Home</Link>
-          <Link href="/submit" className="text-slate-700 hover:text-zkv-700">Submit Proof</Link>
-          <Link href="/leaderboard/0" className="text-slate-700 hover:text-zkv-700">Leaderboard</Link>
-          <ConnectButton />
+
+        <nav className="flex items-center gap-1 text-sm">
+          <NavLink href="/">Home</NavLink>
+          <NavLink href="/submit">Submit Proof</NavLink>
+          <NavLink href="/rounds">Rounds</NavLink>
+          <NavLink href="/admin">Open Round</NavLink>
         </nav>
       </div>
     </header>
+  );
+}
+
+function NavLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <Link
+      href={href}
+      className="px-3 py-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-white/[0.06] transition"
+    >
+      {children}
+    </Link>
   );
 }

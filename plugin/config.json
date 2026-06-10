@@ -1,0 +1,34 @@
+{
+  "title": "VerifyTrade: Binance Futures PnL",
+  "description": "Notarize your Binance Futures realized PnL for the VerifyTrade leaderboard",
+  "steps": [
+    {
+      "title": "Open Binance Trade History",
+      "description": "Log in and open the Futures Trade History page. The page fires a bapi request we'll intercept.",
+      "cta": "Go to binance.com",
+      "action": "start"
+    },
+    {
+      "title": "Collect session credentials",
+      "description": "We capture your session cookie + csrftoken + device fingerprint so we can re-issue the same authenticated request through the verifier.",
+      "cta": "Check session",
+      "action": "two"
+    },
+    {
+      "title": "Notarize trades",
+      "description": "TLSNotary will run an MPC-TLS / Proxy-mode session against www.binance.com via the configured verifier, producing a presentation of your Futures trade history.",
+      "cta": "Notarize",
+      "action": "three",
+      "prover": true
+    }
+  ],
+  "hostFunctions": ["redirect", "notarize"],
+  "cookies": ["binance.com", "www.binance.com", "accounts.binance.com"],
+  "headers": ["binance.com", "www.binance.com", "accounts.binance.com"],
+  "requests": [
+    {
+      "url": "https://www.binance.com/bapi/futures/v1/private/future/user-data/trade-history",
+      "method": "POST"
+    }
+  ]
+}
